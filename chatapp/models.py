@@ -29,10 +29,18 @@ def get_cipher():
     return Fernet(key)
 
 class Message(models.Model):
+    MESSAGE_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('voice', 'Voice Note'),
+    ]
+    
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
     
     _content = models.TextField(db_column='content', default="")  # Store encrypted content
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES, default='text')
+    voice_note = models.FileField(upload_to='voice_notes/', null=True, blank=True)
+    duration = models.IntegerField(null=True, blank=True, help_text="Duration in seconds for voice notes")
     timestamp = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 

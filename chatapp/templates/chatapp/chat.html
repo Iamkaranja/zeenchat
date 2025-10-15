@@ -24,12 +24,29 @@
 
         {% for message in messages %}
             <div class="message-container flex {% if message.sender == request.user %}justify-end{% endif %}">
-                <div class="max-w-xs lg:max-w-md p-3 rounded-lg {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
-                    <p>{{ message.content }}</p>
-                    <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
-                        {{ message.timestamp|date:"g:i A" }}
-                    </span>
-                </div>
+                {% if message.message_type == 'voice' %}
+                    <div class="max-w-xs lg:max-w-md voice-message-bubble {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
+                        <div class="voice-play-btn {% if message.sender == request.user %}bg-indigo-700 text-white{% else %}bg-gray-300 text-gray-700{% endif %}" onclick="document.getElementById('audio-{{ message.id }}').play()">
+                            <i class="fas fa-play"></i>
+                        </div>
+                        <div class="flex-1">
+                            <audio id="audio-{{ message.id }}" src="{{ message.voice_note.url }}" class="w-full" controls style="height: 32px;"></audio>
+                            <div class="voice-duration {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                                {{ message.duration|default:0 }}s
+                            </div>
+                        </div>
+                        <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                            {{ message.timestamp|date:"g:i A" }}
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="max-w-xs lg:max-w-md p-3 rounded-lg {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
+                        <p>{{ message.content }}</p>
+                        <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                            {{ message.timestamp|date:"g:i A" }}
+                        </span>
+                    </div>
+                {% endif %}
             </div>
         {% endfor %}
     </div>
@@ -42,11 +59,60 @@
     <div class="border-t p-4">
         <form id="chat-form" class="flex flex-col sm:flex-row gap-4">
             {% csrf_token %}
-            <input type="text" id="chat-message-input" name="message" class="flex-1 rounded-lg border p-2 w-full" placeholder="Type your message...">
+            <div class="flex-1 flex gap-2">
+                <input type="text" id="chat-message-input" name="message" class="flex-1 rounded-lg border p-2 w-full" placeholder="Type your message...">
+                <button type="button" id="voice-note-btn" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600" title="Record voice note">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
             <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 w-full sm:w-auto">
                 Send
             </button>
         </form>
+        
+        <!-- Voice recording UI -->
+        <div id="voice-recording-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div id="recording-indicator" class="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+                    <span id="recording-timer" class="text-gray-700 font-mono">0:00</span>
+                    <span class="text-gray-600">Recording...</span>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" id="cancel-recording-btn" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="button" id="stop-recording-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Voice preview UI -->
+        <div id="voice-preview-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-1">
+                    <button type="button" id="play-preview-btn" class="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <div class="flex-1">
+                        <audio id="preview-audio" class="w-full"></audio>
+                        <div class="text-sm text-gray-600">
+                            <span id="preview-duration">0:00</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" id="rerecord-btn" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+                        <i class="fas fa-redo"></i> Re-record
+                    </button>
+                    <button type="button" id="send-voice-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

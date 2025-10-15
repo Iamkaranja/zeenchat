@@ -12,9 +12,21 @@ class ChatManager {
         this.csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 'N/A';
         this.typingTimeout = null;           // Timer for typing indicator
         this.hasStartedChat = false;         // Track if we've started the chat session
+        this.voiceRecorder = null;           // Voice recorder instance
         
         this.initializeWebSocket();
         this.setupEventListeners();
+        this.initializeVoiceRecorder();
+    }
+
+    /**
+     * Initialize the voice recorder
+     */
+    initializeVoiceRecorder() {
+        if (document.getElementById('voice-note-btn')) {
+            this.voiceRecorder = new VoiceRecorder(this);
+            console.log('VoiceRecorder initialized');
+        }
     }
 
     /**
@@ -39,6 +51,9 @@ class ChatManager {
                     break;
                 case 'chat_message':
                     this.appendMessage(data.message, data.sender === this.currentUser, data.timestamp);
+                    break;
+                case 'voice_message':
+                    this.appendVoiceMessage(data.voice_url, data.duration, data.sender === this.currentUser, data.timestamp);
                     break;
                 case 'typing_indicator':
                     this.handleTypingIndicator(data.sender, data.is_typing);
@@ -137,6 +152,52 @@ class ChatManager {
     }
 
     /**
+     * Adds a voice message to the chat window.
+     * @param {string} voiceUrl - URL of the voice note
+     * @param {number} duration - Duration in seconds
+     * @param {boolean} isSender - True if the current user sent it
+     * @param {string} timestamp - When the message was sent
+     */
+    appendVoiceMessage(voiceUrl, duration, isSender, timestamp) {
+        console.log('Chat: Appending voice message:', voiceUrl);
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${isSender ? 'justify-end' : ''}`; // Right for sender, left for receiver
+        const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const audioId = 'audio-' + Date.now() + Math.random().toString(36).substr(2, 9);
+        
+        messageDiv.innerHTML = `
+            <div class="max-w-xs lg:max-w-md voice-message-bubble ${isSender ? 'bg-indigo-600 text-white' : 'bg-gray-200'}">
+                <div class="voice-play-btn ${isSender ? 'bg-indigo-700 text-white' : 'bg-gray-300 text-gray-700'}" onclick="document.getElementById('${audioId}').play()">
+                    <i class="fas fa-play"></i>
+                </div>
+                <div class="flex-1">
+                    <audio id="${audioId}" src="${voiceUrl}" class="w-full" controls style="height: 32px;"></audio>
+                    <div class="voice-duration ${isSender ? 'text-indigo-200' : 'text-gray-500'}">
+                        ${this.formatDuration(duration)}
+                    </div>
+                </div>
+                <span class="text-xs ${isSender ? 'text-indigo-200' : 'text-gray-500'}">${time}</span>
+            </div>
+        `;
+        
+        if (this.messagesDiv) {
+            this.messagesDiv.appendChild(messageDiv);
+            this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight; // Scroll to the bottom
+        }
+    }
+
+    /**
+     * Format duration in seconds to MM:SS
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} - Formatted duration
+     */
+    formatDuration(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    /**
      * Shows or hides the "X is typing..." indicator.
      * @param {string} sender - Who’s typing
      * @param {boolean} isTyping - Are they currently typing?
@@ -177,6 +238,277 @@ class ChatManager {
             .replace(/>/g, ">")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "'");
+    }
+}
+
+/**
+ * Handles voice note recording functionality
+ */
+class VoiceRecorder {
+    constructor(chatManager) {
+        this.chatManager = chatManager;
+        this.mediaRecorder = null;
+        this.audioChunks = [];
+        this.recordingStartTime = null;
+        this.timerInterval = null;
+        this.audioBlob = null;
+        this.recordedDuration = 0;
+        
+        this.voiceBtn = document.getElementById('voice-note-btn');
+        this.recordingUI = document.getElementById('voice-recording-ui');
+        this.previewUI = document.getElementById('voice-preview-ui');
+        this.stopBtn = document.getElementById('stop-recording-btn');
+        this.cancelBtn = document.getElementById('cancel-recording-btn');
+        this.sendBtn = document.getElementById('send-voice-btn');
+        this.rerecordBtn = document.getElementById('rerecord-btn');
+        this.playBtn = document.getElementById('play-preview-btn');
+        this.previewAudio = document.getElementById('preview-audio');
+        this.timerDisplay = document.getElementById('recording-timer');
+        this.durationDisplay = document.getElementById('preview-duration');
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        if (this.voiceBtn) {
+            this.voiceBtn.addEventListener('click', () => this.startRecording());
+        }
+        
+        if (this.stopBtn) {
+            this.stopBtn.addEventListener('click', () => this.stopRecording());
+        }
+        
+        if (this.cancelBtn) {
+            this.cancelBtn.addEventListener('click', () => this.cancelRecording());
+        }
+        
+        if (this.sendBtn) {
+            this.sendBtn.addEventListener('click', () => this.sendVoiceNote());
+        }
+        
+        if (this.rerecordBtn) {
+            this.rerecordBtn.addEventListener('click', () => this.startRecording());
+        }
+        
+        if (this.playBtn) {
+            this.playBtn.addEventListener('click', () => this.togglePreviewPlay());
+        }
+        
+        if (this.previewAudio) {
+            this.previewAudio.addEventListener('ended', () => {
+                this.playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            });
+        }
+    }
+    
+    async startRecording() {
+        try {
+            // Reset state
+            this.audioChunks = [];
+            this.audioBlob = null;
+            this.recordedDuration = 0;
+            
+            // Request microphone access
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Create MediaRecorder
+            this.mediaRecorder = new MediaRecorder(stream);
+            
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.audioChunks.push(event.data);
+                }
+            };
+            
+            this.mediaRecorder.onstop = () => {
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Create blob from chunks
+                this.audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                
+                // Show preview
+                this.showPreview();
+            };
+            
+            // Start recording
+            this.mediaRecorder.start();
+            this.recordingStartTime = Date.now();
+            
+            // Update UI
+            this.showRecordingUI();
+            this.startTimer();
+            
+            console.log('Voice recording started');
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            alert('Could not access microphone. Please check permissions.');
+        }
+    }
+    
+    stopRecording() {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.recordedDuration = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+            this.mediaRecorder.stop();
+            this.stopTimer();
+            console.log('Voice recording stopped');
+        }
+    }
+    
+    cancelRecording() {
+        if (this.mediaRecorder) {
+            if (this.mediaRecorder.state === 'recording') {
+                this.mediaRecorder.stop();
+            }
+            // Stop all tracks
+            if (this.mediaRecorder.stream) {
+                this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        }
+        
+        this.stopTimer();
+        this.audioChunks = [];
+        this.audioBlob = null;
+        this.hideAllUI();
+        console.log('Voice recording cancelled');
+    }
+    
+    showRecordingUI() {
+        this.recordingUI.classList.remove('hidden');
+        this.previewUI.classList.add('hidden');
+        this.voiceBtn.classList.add('recording', 'disabled');
+        this.voiceBtn.disabled = true;
+    }
+    
+    showPreview() {
+        this.recordingUI.classList.add('hidden');
+        this.previewUI.classList.remove('hidden');
+        
+        // Set audio source
+        const audioUrl = URL.createObjectURL(this.audioBlob);
+        this.previewAudio.src = audioUrl;
+        
+        // Display duration
+        this.durationDisplay.textContent = this.formatTime(this.recordedDuration);
+        
+        this.voiceBtn.classList.remove('recording');
+    }
+    
+    hideAllUI() {
+        this.recordingUI.classList.add('hidden');
+        this.previewUI.classList.add('hidden');
+        this.voiceBtn.classList.remove('recording', 'disabled');
+        this.voiceBtn.disabled = false;
+    }
+    
+    togglePreviewPlay() {
+        if (this.previewAudio.paused) {
+            this.previewAudio.play();
+            this.playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+        } else {
+            this.previewAudio.pause();
+            this.playBtn.innerHTML = '<i class="fas fa-play"></i>';
+        }
+    }
+    
+    startTimer() {
+        this.timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+            this.timerDisplay.textContent = this.formatTime(elapsed);
+        }, 1000);
+    }
+    
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+    
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    async sendVoiceNote() {
+        if (!this.audioBlob) {
+            console.error('No audio to send');
+            return;
+        }
+        
+        // Disable send button and show loading
+        this.sendBtn.disabled = true;
+        this.sendBtn.innerHTML = '<span class="voice-uploading"></span> Sending...';
+        
+        try {
+            // Create FormData
+            const formData = new FormData();
+            formData.append('voice_note', this.audioBlob, 'voice-note.webm');
+            formData.append('receiver', this.chatManager.otherUser);
+            formData.append('duration', this.recordedDuration);
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            
+            // Upload to server
+            const response = await fetch('/upload-voice-note/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                console.log('Voice note uploaded successfully:', data);
+                
+                // Start chat if needed
+                if (!this.chatManager.hasStartedChat) {
+                    this.chatManager.socket.send(JSON.stringify({
+                        'type': 'start_chat',
+                        'receiver': this.chatManager.otherUser
+                    }));
+                    this.chatManager.hasStartedChat = true;
+                }
+                
+                // Notify via WebSocket
+                if (this.chatManager.socket.readyState === WebSocket.OPEN) {
+                    this.chatManager.socket.send(JSON.stringify({
+                        'type': 'voice_message',
+                        'sender': this.chatManager.currentUser,
+                        'receiver': this.chatManager.otherUser,
+                        'message_id': data.message_id,
+                        'voice_url': data.voice_url,
+                        'duration': data.duration,
+                        'timestamp': data.timestamp
+                    }));
+                }
+                
+                // Append voice message to chat
+                this.chatManager.appendVoiceMessage(
+                    data.voice_url,
+                    data.duration,
+                    true,
+                    data.timestamp
+                );
+                
+                // Clean up
+                this.hideAllUI();
+                this.audioBlob = null;
+                this.audioChunks = [];
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('Error sending voice note:', error);
+            alert('Failed to send voice note. Please try again.');
+        } finally {
+            this.sendBtn.disabled = false;
+            this.sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        }
     }
 }
 

@@ -107,6 +107,44 @@ def save_message(request):
 
 
 @login_required
+def upload_voice_note(request):
+    """Handle voice note file uploads"""
+    if request.method == 'POST':
+        try:
+            voice_file = request.FILES.get('voice_note')
+            receiver_username = request.POST.get('receiver')
+            duration = request.POST.get('duration', 0)
+            
+            if not voice_file or not receiver_username:
+                return JsonResponse({'status': 'error', 'error': 'Missing required fields'}, status=400)
+            
+            receiver = User.objects.get(username=receiver_username)
+            
+            message = Message(
+                sender=request.user,
+                receiver=receiver,
+                message_type='voice',
+                voice_note=voice_file,
+                duration=int(float(duration))
+            )
+            message.content = '[Voice Note]'  # Placeholder text
+            message.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message_id': message.id,
+                'timestamp': message.timestamp.isoformat(),
+                'voice_url': message.voice_note.url if message.voice_note else None,
+                'duration': message.duration
+            })
+        except User.DoesNotExist:
+            return JsonResponse({'status': 'error', 'error': 'Receiver not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'error': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'error': 'Invalid request method'}, status=400)
+
+
+@login_required
 def chat(request, username):
     other_user = User.objects.get(username=username)
 
