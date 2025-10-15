@@ -10,12 +10,29 @@
 
 {% for message in messages %}
   <div class="message-container flex {% if message.sender == request.user %}justify-end{% endif %}">
-      <div class="max-w-xs lg:max-w-md p-3 rounded-lg {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
-          <p>{{ message.content }}</p>
-          <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
-              {{ message.timestamp|date:"g:i A" }}
-          </span>
-      </div>
+      {% if message.message_type == 'voice' %}
+          <div class="max-w-xs lg:max-w-md voice-message-bubble {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
+              <div class="voice-play-btn {% if message.sender == request.user %}bg-indigo-700 text-white{% else %}bg-gray-300 text-gray-700{% endif %}" onclick="document.getElementById('audio-{{ message.id }}').play()">
+                  <i class="fas fa-play"></i>
+              </div>
+              <div class="flex-1">
+                  <audio id="audio-{{ message.id }}" src="{{ message.voice_note.url }}" class="w-full" controls style="height: 32px;"></audio>
+                  <div class="voice-duration {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                      {{ message.duration|default:0 }}s
+                  </div>
+              </div>
+              <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                  {{ message.timestamp|date:"g:i A" }}
+              </span>
+          </div>
+      {% else %}
+          <div class="max-w-xs lg:max-w-md p-3 rounded-lg {% if message.sender == request.user %}bg-indigo-600 text-white{% else %}bg-gray-200{% endif %}">
+              <p>{{ message.content }}</p>
+              <span class="text-xs {% if message.sender == request.user %}text-indigo-200{% else %}text-gray-500{% endif %}">
+                  {{ message.timestamp|date:"g:i A" }}
+              </span>
+          </div>
+      {% endif %}
   </div>
 
 {% endfor %}
