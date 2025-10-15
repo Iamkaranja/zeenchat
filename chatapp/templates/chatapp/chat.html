@@ -2,6 +2,7 @@
 {% extends 'chatapp/base.html' %}
 {% load static %}
 {% block content %}
+<meta name="other-user" content="{{ other_user.username }}">
 <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md">
     <div class="border-b p-4">
         <h2 class="text-xl font-semibold">Chat with {{ other_user.username }}</h2>
@@ -71,7 +72,7 @@
         </form>
         
         <!-- Voice recording UI -->
-        <div id="voice-recording-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+        <div id="voice-recording-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg" style="display: none;">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <div id="recording-indicator" class="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
@@ -90,7 +91,7 @@
         </div>
         
         <!-- Voice preview UI -->
-        <div id="voice-preview-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+        <div id="voice-preview-ui" class="hidden mt-4 p-4 bg-gray-50 rounded-lg" style="display: none;">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3 flex-1">
                     <button type="button" id="play-preview-btn" class="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700">

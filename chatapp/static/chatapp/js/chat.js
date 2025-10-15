@@ -374,14 +374,18 @@ class VoiceRecorder {
     }
     
     showRecordingUI() {
+        this.recordingUI.style.display = 'block';
         this.recordingUI.classList.remove('hidden');
+        this.previewUI.style.display = 'none';
         this.previewUI.classList.add('hidden');
         this.voiceBtn.classList.add('recording', 'disabled');
         this.voiceBtn.disabled = true;
     }
     
     showPreview() {
+        this.recordingUI.style.display = 'none';
         this.recordingUI.classList.add('hidden');
+        this.previewUI.style.display = 'block';
         this.previewUI.classList.remove('hidden');
         
         // Set audio source
@@ -395,7 +399,9 @@ class VoiceRecorder {
     }
     
     hideAllUI() {
+        this.recordingUI.style.display = 'none';
         this.recordingUI.classList.add('hidden');
+        this.previewUI.style.display = 'none';
         this.previewUI.classList.add('hidden');
         this.voiceBtn.classList.remove('recording', 'disabled');
         this.voiceBtn.disabled = false;
@@ -623,6 +629,22 @@ class UserStatusManager {
         }, 100);
        
     }
+}
+
+// Helper function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 // Initialize based on page context
