@@ -8,11 +8,12 @@ ZeenChat is a secure, real-time chat application built with Django and WebSocket
 
 - 🔒 Message encryption using Fernet
 - 💬 Real-time messaging using WebSockets
+- 🎤 Voice notes with recording and playback
 - 👥 User authentication and authorization
 - 🎨 Modern, responsive UI with Tailwind CSS
 - 🚀 Easy to deploy and scale
 - 📱 Mobile-friendly design
-- ⚡ Rate liGPLing and security features
+- ⚡ Rate limiting and security features
 
 ## Tech Stack
 
@@ -22,12 +23,26 @@ ZeenChat is a secure, real-time chat application built with Django and WebSocket
 - **Frontend**: HTML, JavaScript, Tailwind CSS
 - **Message Queue**: Redis
 - **Encryption**: cryptography.fernet
+- **Voice Recording**: Web MediaRecorder API
+
+## Key Features Explained
+
+### Voice Notes 🎤
+Record and send voice messages directly in your chats:
+- Browser-based recording (no plugins required)
+- Real-time recording with timer
+- Preview before sending
+- Audio playback in chat bubbles
+- WebM/Opus format for best compatibility
+
+See [VOICE_NOTES.md](VOICE_NOTES.md) for detailed documentation.
 
 ## Prerequisites
 
 - Python 3.8 or higher
 - Redis Server
 - Git
+- Modern browser with MediaRecorder API support (for voice notes)
 
 ## Installation
 

@@ -64,6 +64,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         handlers = {
             'chat_message': self.handle_chat_message,
+            'voice_message': self.handle_voice_message,
             'typing': self.handle_typing,
             'start_chat': self.handle_start_chat
         }
@@ -145,6 +146,35 @@ class ChatConsumer(AsyncWebsocketConsumer):
         })
         logger.debug(f"{sender} is typing: {is_typing} in {group_name}")
 
+    async def handle_voice_message(self, data):
+        """Notify users about a new voice message"""
+        sender = data.get('sender', self.user.username)
+        receiver_username = data.get('receiver')
+        message_id = data.get('message_id')
+        voice_url = data.get('voice_url')
+        duration = data.get('duration')
+
+        if not receiver_username or receiver_username not in self.private_groups:
+            logger.warning(f"No chat group found for {receiver_username}")
+            return
+
+        # Broadcast to the lobby for unread updates
+        await self.channel_layer.group_send(self.lobby_group_name, {
+            'type': 'unread_message_update',
+            'sender': sender,
+            'receiver': receiver_username
+        })
+
+        group_name = self.private_groups[receiver_username]
+        await self.channel_layer.group_send(group_name, {
+            'type': 'voice_message',
+            'message_id': message_id,
+            'sender': sender,
+            'voice_url': voice_url,
+            'duration': duration,
+            'timestamp': data.get('timestamp')
+        })
+
     async def chat_message(self, event):
         """Relay chat messages to the client"""
         await self.send(text_data=json.dumps({
@@ -160,6 +190,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'typing_indicator',
             'sender': event['sender'],
             'is_typing': event['is_typing']
+        }))
+
+    async def voice_message(self, event):
+        """Relay voice messages to the client"""
+        await self.send(text_data=json.dumps({
+            'type': 'voice_message',
+            'message_id': event['message_id'],
+            'sender': event['sender'],
+            'voice_url': event['voice_url'],
+            'duration': event['duration'],
+            'timestamp': event['timestamp']
         }))
 
     async def user_list_update(self, event):
